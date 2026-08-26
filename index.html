@@ -711,6 +711,19 @@ footer p {
   line-height: 1.6;
 }
 
+.form-err {
+  display: none;
+  margin-top: 16px;
+  padding: 13px 16px;
+  border: 1px solid var(--red);
+  background: rgba(220,20,60,0.08);
+  color: var(--white);
+  font-size: 15px;
+  line-height: 1.5;
+}
+
+.form-err.show { display: block; }
+
 .hp { position: absolute; left: -9999px; }
 
 /* ANIMATIONS */
@@ -924,7 +937,7 @@ footer p {
 <section class="signup" id="signup">
   <p class="section-label">Reserve Your Spot</p>
   <h2 class="section-title">Sign Up</h2>
-  <p class="section-text">Saturday 26 September, 4:30pm to 7:30pm at The Gauntlet Fight Academy, Ealing. Fill this in and we will come back to you with payment details. Spaces are limited and go first come, first served.</p>
+  <p class="section-text">Saturday 26 September, 4:30pm to 7:30pm at The Gauntlet Fight Academy, Ealing. Fill this in and you go straight through to payment. Your place is held the moment it clears, and spaces go first come, first served.</p>
 
   <form class="form-wrap" name="signup" method="POST" data-netlify="true" netlify-honeypot="bot-field" action="/thanks.html">
     <input type="hidden" name="form-name" value="signup">
@@ -1031,8 +1044,9 @@ footer p {
       </label>
     </div>
 
-    <button type="submit" class="btn btn-primary" style="width:100%">Send My Details</button>
-    <p class="form-note">Nothing is charged here. We will email you payment details and confirm your place. Your spot is held once payment clears.</p>
+    <button type="submit" class="btn btn-primary" id="submitBtn" style="width:100%">Continue To Payment</button>
+    <p class="form-note">Payment is handled by Stripe. We never see or store your card details. Your place is confirmed as soon as the payment clears.</p>
+    <p class="form-err" id="formErr" hidden></p>
   </form>
 </section>
 
@@ -1042,6 +1056,65 @@ footer p {
   <p>&copy; 2026 Fight Camp. All rights reserved.</p>
   <p style="margin-top: 8px;">London, UK &nbsp;&bull;&nbsp; <a href="terms.html" style="color:var(--grey);text-decoration:none;border-bottom:1px solid rgba(255,255,255,.2)">Terms and Conditions</a></p>
 </footer>
+
+<script>
+(function () {
+  var LINKS = {
+    "Bronze GBP20": "https://buy.stripe.com/aFaeVeaSp3AR80Zd0Pgbm00",
+    "Silver GBP25": "https://buy.stripe.com/5kQdRaaSp7R72GFaSHgbm01",
+    "Gold GBP30":   "https://buy.stripe.com/14AfZi0dLefv5SR6Crgbm02"
+  };
+
+  var form = document.forms.signup;
+  if (!form) return;
+  var btn = document.getElementById('submitBtn');
+  var err = document.getElementById('formErr');
+
+  function fail(msg) {
+    err.textContent = msg;
+    err.classList.add('show');
+    err.hidden = false;
+    btn.disabled = false;
+    btn.textContent = 'Continue To Payment';
+    err.scrollIntoView({ block: 'center', behavior: 'smooth' });
+  }
+
+  form.addEventListener('submit', function (e) {
+    if (!form.checkValidity()) return;          // let the browser show its own messages
+    e.preventDefault();
+
+    var data = new FormData(form);
+    var pkg = data.get('package');
+    var target = LINKS[pkg];
+    if (!target) { form.submit(); return; }     // unknown package, fall back to a normal post
+
+    err.classList.remove('show');
+    btn.disabled = true;
+    btn.textContent = 'One moment...';
+
+    var ref = (data.get('name') || '')
+      .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+      .replace(/[^a-zA-Z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 60);
+
+    var url = target
+      + '?prefilled_email=' + encodeURIComponent(data.get('email') || '')
+      + (ref ? '&client_reference_id=' + encodeURIComponent(ref) : '');
+
+    fetch('/', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams(data).toString()
+    })
+    .then(function (r) {
+      if (!r.ok) throw new Error('status ' + r.status);
+      window.location.href = url;
+    })
+    .catch(function () {
+      fail('We could not save your details just then. Check your connection and try again, or email fightcampuk@gmail.com and we will sort it out.');
+    });
+  });
+})();
+</script>
 
 </body>
 </html>
